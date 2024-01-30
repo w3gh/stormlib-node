@@ -2,48 +2,61 @@
 
 #[macro_use]
 extern crate napi_derive;
+extern crate libc;
 
-use std::convert::TryInto;
+use napi::*;
+use mpq::{ MPQ, MPQFile };
+use std::path::Path;
 
-use napi::{CallContext, Env, JsNumber, JsObject, Result, Task};
+mod mpq;
 
-struct AsyncTask(u32);
-
-impl Task for AsyncTask {
-  type Output = u32;
-  type JsValue = JsNumber;
-
-  fn compute(&mut self) -> Result<Self::Output> {
-    use std::thread::sleep;
-    use std::time::Duration;
-    sleep(Duration::from_millis(self.0 as u64));
-    Ok(self.0 * 2)
-  }
-
-  fn resolve(self, env: Env, output: Self::Output) -> Result<Self::JsValue> {
-    env.create_uint32(output)
-  }
+#[napi(js_name = "MpqArchive")]
+struct JsMpqArchive {
+    mpq: Option<MPQ>
 }
 
-#[module_exports]
-fn init(mut exports: JsObject) -> Result<()> {
-  exports.create_named_method("sync", sync_fn)?;
+#[napi]
+impl JsMpqArchive {
+    #[napi(factory)]
+    pub fn open(filepath: String) -> Self {
+        JsMpqArchive { mpq : MPQ::open(Path::new(&filepath), None, None).ok() }
+    }
 
-  exports.create_named_method("sleep", sleep)?;
-  Ok(())
+    #[napi(constructor)]
+    pub fn new(filepath: String) -> Self {
+        JsMpqArchive { mpq : MPQ::open(Path::new(&filepath), None, None).ok() }
+    }
+
+    #[napi]
+    pub fn get_file(&mut self, name: String) -> JsMpqFile {
+        let file = self.mpq.as_mut().unwrap().get_file(name).ok();
+
+        JsMpqFile {
+            file: file
+        }
+    }
 }
 
-#[js_function(1)]
-fn sync_fn(ctx: CallContext) -> Result<JsNumber> {
-  let argument: u32 = ctx.get::<JsNumber>(0)?.try_into()?;
-
-  ctx.env.create_uint32(argument + 100)
+#[napi(js_name = "MpqFile")]
+struct JsMpqFile {
+    file: Option<MPQFile>
 }
 
-#[js_function(1)]
-fn sleep(ctx: CallContext) -> Result<JsObject> {
-  let argument: u32 = ctx.get::<JsNumber>(0)?.try_into()?;
-  let task = AsyncTask(argument);
-  let async_task = ctx.env.spawn(task)?;
-  Ok(async_task.promise_object())
+#[napi]
+impl JsMpqFile {
+    // dummy method to proper ts types generation
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self { file: None }
+    }
+
+    #[napi(getter)]
+    pub fn size(&mut self) -> napi::Result<u32> {
+        Ok(self.file.as_mut().unwrap().size())
+    }
+
+    #[napi(getter)]
+    pub fn name(&mut self) -> napi::Result<String> {
+        Ok(self.file.as_mut().unwrap().name())
+    }
 }

@@ -12,10 +12,10 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@node-rs/helper": "^1.2.1"
+    "@node-rs/helper": "1.5.0"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^1.2.1"
+    "@napi-rs/cli": "2.18.0"
   },
   "engines": {
     "node": ">= 10"
